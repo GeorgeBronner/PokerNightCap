@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PokerNightCap — Table</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="game-wrap">
+
+  <!-- Main game area -->
+  <div class="game-main">
+    <!-- Top bar with room code -->
+    <div class="room-code-bar">
+      <span class="brand">PokerNightCap ♠</span>
+      <span class="room-code-val" id="room-code-display">------</span>
+      <span class="player-count" id="player-count"></span>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrap">
+      <div id="table">
+        <div class="table-bumper"><div class="table-felt">
+          <div id="stage-indicator"></div>
+          <div id="community-cards"></div>
+          <div id="pot-display"><span class="pot-label">Pot</span><span class="pot-amt" id="pot-amount">$0</span></div>
+          <div class="felt-brand">POKERNIGHTCAP</div>
+          <button id="next-hand-btn" class="hidden">Deal Next Hand</button>
+        </div></div>
+      </div>
+    </div>
+
+    <!-- Action panel -->
+    <div id="action-panel" class="hidden">
+      <div class="action-title">
+        <span>Your turn</span>
+        <span id="countdown"></span>
+      </div>
+      <div class="action-buttons">
+        <button class="action-btn" id="btn-fold">Fold</button>
+        <button class="action-btn" id="btn-check">Check</button>
+        <button class="action-btn" id="btn-call">Call</button>
+        <button class="action-btn" id="btn-raise">Raise</button>
+        <button class="action-btn" id="btn-allin">All-in</button>
+      </div>
+      <div id="raise-section" class="hidden">
+        <button class="preset" id="preset-min">Min</button>
+        <button class="preset" id="preset-half">½ Pot</button>
+        <button class="preset" id="preset-pot">Pot</button>
+        <button class="preset" id="preset-max">Max</button>
+        <input type="range" id="raise-slider" min="20" max="1000" step="10" value="20">
+        <span id="raise-value">$20</span>
+      </div>
+    </div>
+
+    <!-- Admin panel -->
+    <button id="start-game-btn" class="hidden">▶ Table Admin - Start First Hand</button>
+    <details id="admin-panel" class="hidden">
+      <summary>⚙ Admin Controls</summary>
+
+      <div class="admin-section">
+        <select id="chips-target"></select>
+        <input type="number" id="chips-amount" placeholder="Amount" min="1" value="500" style="max-width:90px">
+        <button id="btn-add-chips" class="admin-btn admin-btn-green">Add Chips</button>
+        <p class="admin-hint">⚠ Chips can only be adjusted between hands.</p>
+      </div>
+
+      <div class="admin-section">
+        <select id="transfer-target"></select>
+        <button id="btn-transfer" class="admin-btn admin-btn-violet">Transfer Admin</button>
+      </div>
+
+      <div class="admin-section">
+        <select id="kick-target"></select>
+        <button id="btn-kick" class="admin-btn admin-btn-red">Kick Player</button>
+      </div>
+
+      <div class="admin-section">
+        <input type="number" id="set-starting-chips" min="1" placeholder="Start $" title="Starting chips" style="max-width:90px">
+        <input type="number" id="set-small-blind" min="1" placeholder="SB" title="Small blind" style="max-width:70px">
+        <input type="number" id="set-big-blind" min="1" placeholder="BB" title="Big blind" style="max-width:70px">
+        <button id="btn-apply-settings" class="admin-btn admin-btn-gold">Save Game Settings</button>
+        <p class="admin-hint">Blinds take effect next hand. Starting chips reset all stacks only before the first hand.</p>
+      </div>
+    </details>
+  </div>
+
+  <!-- Sidebar (chat) -->
+  <aside class="game-sidebar" id="chat-container">
+    <div class="chat-tabs">
+      <div class="chat-tab tab-active" id="tab-log">
+        Hand Log
+        <span class="tab-badge hidden" id="log-badge">0</span>
+      </div>
+      <div class="chat-tab" id="tab-chat">
+        Chat
+        <span class="tab-badge hidden" id="chat-badge">0</span>
+      </div>
+    </div>
+    <div class="chat-messages-wrap" id="log-messages"></div>
+    <div class="chat-messages-wrap hidden" id="chat-messages"></div>
+    <div class="chat-input-row">
+      <input type="text" id="chat-input" placeholder="Say something..." maxlength="200" autocomplete="off">
+      <button id="chat-send">Send</button>
+    </div>
+  </aside>
+
+</div>
+
+<script src="/static/js/socket.js"></script>
+<script src="/static/js/animations.js"></script>
+<script src="/static/js/chat.js"></script>
+<script src="/static/js/game.js"></script>
+<script>
+  const roomCode = sessionStorage.getItem('room_code');
+  const playerId = sessionStorage.getItem('player_id');
+  const displayName = sessionStorage.getItem('display_name');
+  const reconnectToken = sessionStorage.getItem('reconnect_token');
+
+  if (!roomCode || !playerId) {
+    window.location.href = '/';
+  }
+
+  document.getElementById('room-code-display').textContent = roomCode;
+
+  // Init chat
+  const chatBox = new ChatBox(document.getElementById('chat-container'));
+
+  // Init game state
+  const gameState = new GameState(null, playerId);
+  gameState.setChat(chatBox);
+
+  // Init socket
+  const socket = new PokerSocket();
+  gameState.socket = socket;
+
+  // Wire up action buttons
+  document.getElementById('btn-fold')?.addEventListener('click', () => {
+    socket.send({ type: 'player_action', action: 'fold', amount: 0 });
+  });
+  document.getElementById('btn-check')?.addEventListener('click', () => {
+    socket.send({ type: 'player_action', action: 'check', amount: 0 });
+  });
+  document.getElementById('btn-call')?.addEventListener('click', () => {
+    socket.send({ type: 'player_action', action: 'call', amount: 0 });
+  });
+  document.getElementById('btn-raise')?.addEventListener('click', () => {
+    const amount = parseInt(document.getElementById('raise-slider')?.value || 0);
+    socket.send({ type: 'player_action', action: 'raise', amount });
+  });
+  document.getElementById('btn-allin')?.addEventListener('click', () => {
+    socket.send({ type: 'player_action', action: 'all_in', amount: 0 });
+  });
+
+  // Admin buttons
+  document.getElementById('start-game-btn')?.addEventListener('click', () => {
+    socket.send({ type: 'admin_start_game' });
+  });
+  // Anyone can deal the next hand once the previous one is over
+  document.getElementById('next-hand-btn')?.addEventListener('click', () => {
+    socket.send({ type: 'deal_next_hand' });
+    document.getElementById('next-hand-btn')?.classList.add('hidden');
+  });
+  document.getElementById('btn-add-chips')?.addEventListener('click', () => {
+    const target = document.getElementById('chips-target')?.value;
+    const amount = parseInt(document.getElementById('chips-amount')?.value || 0);
+    if (target && amount > 0) socket.send({ type: 'admin_add_chips', target_player_id: target, amount });
+  });
+  document.getElementById('btn-transfer')?.addEventListener('click', () => {
+    const target = document.getElementById('transfer-target')?.value;
+    if (target) socket.send({ type: 'admin_transfer', target_player_id: target });
+  });
+  document.getElementById('btn-kick')?.addEventListener('click', () => {
+    const target = document.getElementById('kick-target')?.value;
+    if (target && confirm('Kick this player?')) socket.send({ type: 'admin_kick_player', target_player_id: target });
+  });
+  document.getElementById('btn-apply-settings')?.addEventListener('click', () => {
+    const settings = {};
+    const chips = parseInt(document.getElementById('set-starting-chips')?.value);
+    const sb = parseInt(document.getElementById('set-small-blind')?.value);
+    const bb = parseInt(document.getElementById('set-big-blind')?.value);
+    if (!isNaN(chips)) settings.starting_chips = chips;
+    if (!isNaN(sb)) settings.small_blind = sb;
+    if (!isNaN(bb)) settings.big_blind = bb;
+    if (!Object.keys(settings).length) return;
+    if (!confirm('Are you sure you want to change the game settings?')) return;
+    socket.send({ type: 'admin_update_settings', settings });
+  });
+
+  // Chat
+  chatBox.onSend(text => {
+    socket.send({ type: 'chat_message', message: text });
+  });
+
+  // Socket message routing
+  socket
+    .on('room_joined', (p) => {
+      // Update token in case it changed
+      if (p.reconnect_token) sessionStorage.setItem('reconnect_token', p.reconnect_token);
+      gameState.handleRoomState(p);
+      const count = (p.players || []).length;
+      document.getElementById('player-count').textContent = `${count} player${count !== 1 ? 's' : ''}`;
+    })
+    .on('room_state', (p) => gameState.handleRoomState(p))
+    .on('player_joined', (p) => {
+      gameState.handlePlayerJoined(p);
+      const count = (gameState.state?.players || []).length;
+      document.getElementById('player-count').textContent = `${count} player${count !== 1 ? 's' : ''}`;
+    })
+    .on('player_left', (p) => gameState.handlePlayerLeft(p))
+    .on('admin_changed', (p) => gameState.handleAdminChanged(p))
+    .on('hand_started', (p) => gameState.handleHandStarted(p))
+    .on('hole_cards_dealt', (p) => gameState.handleHoleCardsDealt(p))
+    .on('action_required', (p) => gameState.handleActionRequired(p))
+    .on('turn_changed', (p) => gameState.handleTurnChanged(p))
+    .on('player_acted', (p) => gameState.handlePlayerActed(p))
+    .on('stage_changed', (p) => gameState.handleStageChanged(p))
+    .on('hand_result', (p) => gameState.handleHandResult(p))
+    .on('chips_updated', (p) => gameState.handleChipsUpdated(p))
+    .on('player_kicked', (p) => gameState.handlePlayerKicked(p))
+    .on('settings_updated', (p) => gameState.handleSettingsUpdated(p))
+    .on('chat_message', (p) => {
+      if (p.is_system) chatBox.addSystemMessage(p.message, p.timestamp);
+      else chatBox.addChatMessage(p.sender_name, p.message, p.timestamp);
+    })
+    .on('error', (p) => {
+      if (p.code === 'room_not_found') {
+        showToast('This room no longer exists.', 'error');
+        sessionStorage.removeItem('reconnect_token');
+        setTimeout(() => { window.location.href = '/'; }, 1500);
+        return;
+      }
+      gameState.handleError(p);
+    })
+    .on('_disconnected', () => showToast('Reconnecting…', 'info'))
+    .on('_reconnect_failed', () => {
+      showToast('Connection lost. Please refresh.', 'error');
+    });
+
+  // Connect
+  const firstMsg = { type: 'join_room', room_code: roomCode, display_name: displayName || '', reconnect_token: reconnectToken };
+  socket.connect(roomCode, firstMsg);
+</script>
+</body>
+</html>

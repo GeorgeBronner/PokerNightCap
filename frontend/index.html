@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PokerNightCap</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="landing-wrap">
+  <h1 class="landing-title">PokerNightCap ♠</h1>
+  <p class="landing-sub">Texas Hold'em with friends — no accounts, just a room code.</p>
+
+  <div class="cards-row">
+    <!-- Create Room -->
+    <div class="room-card">
+      <h2>♠ Create Room</h2>
+      <form id="create-form">
+        <div class="form-group">
+          <label for="create-name">Your display name</label>
+          <input class="form-control" id="create-name" type="text" maxlength="20" placeholder="e.g. PlayerOne" autocomplete="off" required>
+        </div>
+        <span class="settings-toggle" id="settings-toggle">⚙ Game settings</span>
+        <div class="settings-panel" id="settings-panel">
+          <div class="form-group">
+            <label for="small-blind">Small blind</label>
+            <input class="form-control" id="small-blind" type="number" min="1" value="10">
+          </div>
+          <div class="form-group">
+            <label for="big-blind">Big blind</label>
+            <input class="form-control" id="big-blind" type="number" min="2" value="20">
+          </div>
+          <div class="form-group">
+            <label for="starting-chips">Starting chips</label>
+            <input class="form-control" id="starting-chips" type="number" min="50" value="1000">
+          </div>
+          <div class="form-group">
+            <label for="turn-timer">Turn timer (seconds)</label>
+            <input class="form-control" id="turn-timer" type="number" min="5" max="120" value="30">
+          </div>
+        </div>
+        <p class="error-msg" id="create-error"></p>
+        <button type="submit" class="btn btn-primary">Create Room</button>
+      </form>
+    </div>
+
+    <!-- Join Room -->
+    <div class="room-card">
+      <h2>♥ Join Room</h2>
+      <form id="join-form">
+        <div class="form-group">
+          <label for="room-code">Room code</label>
+          <input class="form-control" id="room-code" type="text" maxlength="6" placeholder="ABC123" autocomplete="off" style="text-transform:uppercase" required>
+        </div>
+        <div class="form-group">
+          <label for="join-name">Your display name</label>
+          <input class="form-control" id="join-name" type="text" maxlength="20" placeholder="e.g. PlayerTwo" autocomplete="off" required>
+        </div>
+        <p class="error-msg" id="join-error"></p>
+        <button type="submit" class="btn btn-primary">Join Room</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/socket.js"></script>
+<script>
+  // Settings toggle
+  document.getElementById('settings-toggle').addEventListener('click', () => {
+    document.getElementById('settings-panel').classList.toggle('open');
+  });
+
+  // Create room
+  document.getElementById('create-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('create-name').value.trim();
+    if (!name) return;
+
+    const settings = {
+      small_blind: parseInt(document.getElementById('small-blind').value) || 10,
+      big_blind: parseInt(document.getElementById('big-blind').value) || 20,
+      starting_chips: parseInt(document.getElementById('starting-chips').value) || 1000,
+      turn_timer_seconds: parseInt(document.getElementById('turn-timer').value) || 30,
+    };
+
+    const socket = new PokerSocket();
+    const firstMsg = { type: 'create_room', display_name: name, settings };
+
+    socket.on('room_joined', (payload) => {
+      sessionStorage.setItem('reconnect_token', payload.reconnect_token);
+      sessionStorage.setItem('room_code', payload.room_code);
+      sessionStorage.setItem('display_name', name);
+      sessionStorage.setItem('player_id', payload.player_id);
+      window.location.href = '/game';
+    });
+
+    socket.on('error', (payload) => {
+      document.getElementById('create-error').textContent = payload.message;
+    });
+
+    // Use a dummy room code; server will create one
+    socket.connect('NEW', firstMsg);
+  });
+
+  // Join room
+  document.getElementById('join-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const code = document.getElementById('room-code').value.trim().toUpperCase();
+    const name = document.getElementById('join-name').value.trim();
+    if (!code || !name) return;
+
+    // Check room exists first
+    const resp = await fetch(`/api/room/${code}/exists`);
+    const data = await resp.json();
+    if (!data.exists) {
+      document.getElementById('join-error').textContent = 'Room not found.';
+      return;
+    }
+
+    const socket = new PokerSocket();
+    const firstMsg = { type: 'join_room', room_code: code, display_name: name };
+
+    socket.on('room_joined', (payload) => {
+      sessionStorage.setItem('reconnect_token', payload.reconnect_token);
+      sessionStorage.setItem('room_code', payload.room_code || code);
+      sessionStorage.setItem('display_name', name);
+      sessionStorage.setItem('player_id', payload.player_id);
+      window.location.href = '/game';
+    });
+
+    socket.on('error', (payload) => {
+      document.getElementById('join-error').textContent = payload.message;
+    });
+
+    socket.connect(code, firstMsg);
+  });
+</script>
+</body>
+</html>
