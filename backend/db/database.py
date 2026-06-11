@@ -3,7 +3,7 @@ from sqlalchemy.orm import DeclarativeBase
 from contextlib import asynccontextmanager
 import os
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "poker.db")
+DB_PATH = os.environ.get("POKER_DB_PATH", os.path.join(os.path.dirname(__file__), "..", "poker.db"))
 DATABASE_URL = f"sqlite+aiosqlite:///{DB_PATH}"
 
 engine = create_async_engine(DATABASE_URL, echo=False)

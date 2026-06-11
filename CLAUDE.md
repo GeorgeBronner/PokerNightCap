@@ -6,7 +6,7 @@ A real-time multiplayer Texas Hold'em poker web app. Players join via room code 
 
 - **Backend:** Python FastAPI with WebSockets
 - **Frontend:** Vanilla JS + custom CSS, "Midnight Velvet" casino theme (served by FastAPI)
-- **Database:** SQLite via SQLAlchemy (async)
+- **Database:** SQLite via SQLAlchemy (async) — path set by `POKER_DB_PATH` env var, defaults to `backend/poker.db`; the Docker image sets it to `/app/data/poker.db` so a volume can be mounted at `/app/data`
 - **State:** In-memory game state per room (history persisted to DB as play happens)
 
 ## Project Structure

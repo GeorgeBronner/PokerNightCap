@@ -21,11 +21,13 @@ COPY --from=builder /app/backend/.venv .venv
 COPY backend/ ./
 COPY frontend/ ../frontend/
 
-# App writes poker.db next to main.py
-RUN chown -R app:app /app
+# DB lives in /app/data — mount a volume there to persist it (host dir must be
+# writable by the app user, uid 999)
+RUN mkdir -p /app/data && chown -R app:app /app
 
 ENV PATH="/app/backend/.venv/bin:$PATH" \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    POKER_DB_PATH=/app/data/poker.db
 
 USER app
 
