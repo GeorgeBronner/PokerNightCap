@@ -1,0 +1,25 @@
+# VCS / IDE
+.git
+.gitignore
+.idea
+.vscode
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Python artifacts
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+backend/.venv
+
+# Local database
+backend/poker.db
+
+# Tests and docs (not needed at runtime)
+backend/tests
+CLAUDE.md
+README.md
+tasks
+.claude
